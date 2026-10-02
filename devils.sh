@@ -306,18 +306,18 @@ boot_qemu() {
     echo -e "${MAGENTA}     ╚══════════════════════════════════════════════════╝${NC}"
     echo ""
 
-    sshx_log=$(mktemp)
+    # MODIFICADO: Se reemplazó la invocación a sshx.io (que provocaba fallo de conexión SSL)
+    # por tmate, garantizando la creación de un túnel web funcional y seguro.
+    if ! command -v tmate &> /dev/null; then
+        $SUDO_CMD apt-get update -y > /dev/null 2>&1
+        $SUDO_CMD apt-get install -y tmate > /dev/null 2>&1
+    fi
 
-    curl -sSf https://sshx.io/get | sh -s run \
-        > "$sshx_log" 2>&1 &
-
-    sleep 5
-
-    SSHX_URL=$(grep -o \
-        'https://sshx.io/s/[a-zA-Z0-9]*' \
-        "$sshx_log" | head -n 1)
-
-    rm -f "$sshx_log"
+    tmate_log=$(mktemp)
+    tmate -S /tmp/tmate.sock new-session -d > /dev/null 2>&1
+    tmate -S /tmp/tmate.sock wait tmate-ready > /dev/null 2>&1
+    TMATE_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_web}')
+    rm -f "$tmate_log"
 
     clear
 
@@ -331,14 +331,15 @@ boot_qemu() {
     echo -e "${MAGENTA}     ║ ${WHITE}🚀 Port Rule : ${YELLOW}${TCP_HOST_PORT} → ${TCP_GUEST_PORT}${MAGENTA}                  ║${NC}"
     echo -e "${MAGENTA}     ╠══════════════════════════════════════════════════╣${NC}"
 
-    if [ ! -z "$SSHX_URL" ]; then
+    # MODIFICADO: Se ajustó la visualización de la caja de diálogo para imprimir $TMATE_URL en lugar de la variable de sshx.
+    if [ ! -z "$TMATE_URL" ]; then
 
-        echo -e "${MAGENTA}     ║ ${YELLOW}🔥 LIVE SSHX ACCESS LINK:${MAGENTA}                         ║${NC}"
-        echo -e "${MAGENTA}     ║ ${GREEN}$SSHX_URL${MAGENTA}                                      ║${NC}"
+        echo -e "${MAGENTA}     ║ ${YELLOW}🔥 LIVE TMATE WEB LINK:${MAGENTA}                         ║${NC}"
+        echo -e "${MAGENTA}     ║ ${GREEN}$TMATE_URL${MAGENTA}                                      ║${NC}"
 
     else
 
-        echo -e "${MAGENTA}     ║ ${RED}⚠️ SSHX tunnel loading slow.${MAGENTA}                      ║${NC}"
+        echo -e "${MAGENTA}     ║ ${RED}⚠️️ TMATE tunnel loading slow.${MAGENTA}                     ║${NC}"
         echo -e "${MAGENTA}     ║ ${WHITE}Direct local network port is listening.${MAGENTA}         ║${NC}"
 
     fi
@@ -411,7 +412,9 @@ clean_vps() {
         /home/daytona/ubuntu22.qcow2 \
         .vps_env
 
-    pkill sshx > /dev/null 2>&1
+    # MODIFICADO: Se detiene el proceso tmate en la limpieza de la VPS en lugar de sshx.
+    tmate -S /tmp/tmate.sock kill-session > /dev/null 2>&1
+    pkill tmate > /dev/null 2>&1
     pkill sh > /dev/null 2>&1
 
     sleep 1
